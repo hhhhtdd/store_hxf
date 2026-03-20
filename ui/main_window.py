@@ -24,8 +24,11 @@ class MainWindow:
         self.style.configure("TLabelframe", background="#F5F5F7", bordercolor="#D2D2D7")
         self.style.configure("TLabelframe.Label", background="#F5F5F7", font=('Helvetica', 14, 'bold'), foreground="#1D1D1F")
 
-        self.style.configure("TButton", padding=10, font=('Helvetica', 14), background="#FFFFFF", bordercolor="#D2D2D7")
-        self.style.map("TButton", background=[('active', '#F5F5F7')])
+        self.style.configure("IOS.TButton", padding=12, font=('Helvetica', 14, 'bold'), background="#FFFFFF", foreground="#0071E3", borderwidth=1, relief="flat")
+        self.style.map("IOS.TButton",
+            background=[('active', '#F5F5F7')],
+            foreground=[('active', '#0071E3')]
+        )
 
         self.style.configure("TLabel", font=('Helvetica', 14), background="#F5F5F7", foreground="#1D1D1F")
 
@@ -70,25 +73,36 @@ class MainWindow:
     def build_ui(self):
 
         # ===== 顶部工具栏 (薄荷绿背景/淡雅) =====
-        top_bar = tk.Frame(self.root, bg="#E8F5E9", height=60) # Light Green
+        top_bar = tk.Frame(self.root, bg="#E8F5E9", height=80)
         top_bar.pack(fill=tk.X)
         top_bar.pack_propagate(False)
 
-        ttk.Button(top_bar, text="后台管理", command=self.open_admin).pack(side=tk.RIGHT, padx=20, pady=5)
-        tk.Label(top_bar, text="理工文具店收银终端", font=('Helvetica', 18, 'bold'), bg="#E8F5E9", fg="#2E7D32").pack(side=tk.LEFT, padx=30)
+        ttk.Button(top_bar, text="后台管理", command=self.open_admin, style="IOS.TButton").pack(side=tk.RIGHT, padx=30, pady=10)
+
+        # 系统名称居中显示
+        title_label = tk.Label(top_bar, text="理工文具店收银终端", font=('Helvetica', 22, 'bold'), bg="#E8F5E9", fg="#1D1D1F")
+        title_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
         # ===== 居中搜索框 (纯白区域) =====
-        search_section = tk.Frame(self.root, bg="#FFFFFF", pady=40)
+        search_section = tk.Frame(self.root, bg="#FFFFFF", pady=60)
         search_section.pack(fill=tk.X)
 
-        search_container = tk.Frame(search_section, bg="#FFFFFF")
-        search_container.pack(expand=True)
+        # 模拟圆角矩形搜索框 (加粗边框)
+        search_outer = tk.Frame(search_section, bg="#D2D2D7", padx=3, pady=3) # Border
+        search_outer.pack(expand=True)
 
-        tk.Label(search_container, text="🔍", font=('Helvetica', 24), bg="#FFFFFF").pack(side=tk.LEFT, padx=(0, 10))
+        search_container = tk.Frame(search_outer, bg="#FFFFFF", padx=15, pady=5)
+        search_container.pack()
 
-        self.entry = tk.Entry(search_container, font=('Helvetica', 24), width=40, bd=0, highlightthickness=1, highlightcolor="#0071E3", highlightbackground="#D2D2D7")
-        self.entry.pack(side=tk.LEFT, ipady=8, padx=10)
+        # 🔍 标志在最左边
+        tk.Label(search_container, text="🔍", font=('Helvetica', 22), bg="#FFFFFF", fg="#86868B").pack(side=tk.LEFT)
+
+        self.entry = tk.Entry(search_container, font=('Helvetica', 24), width=35, bd=0, highlightthickness=0, bg="#FFFFFF")
+        self.entry.pack(side=tk.LEFT, ipady=10, padx=10)
         self.entry.focus_set()
+
+        # 右侧提示文本 (不透明度 30% -> 灰色 #D2D2D7)
+        tk.Label(search_container, text="名称 / 货号 / 类别", font=('Helvetica', 14), bg="#FFFFFF", fg="#D2D2D7").pack(side=tk.RIGHT, padx=10)
 
         # ===== 绑定快捷键 =====
         self.entry.bind("<Return>", lambda e: self.process_stock(ask_qty=False))
@@ -121,7 +135,7 @@ class MainWindow:
         ttk.Label(info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=10)
 
         # ===== 近期记录 =====
-        record_frame = ttk.LabelFrame(self.root, text="最近 20 条交易记录")
+        record_frame = ttk.LabelFrame(self.root, text="最近 10 条交易记录")
         record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
 
         columns = ("时间", "编码", "名称", "类型", "数量")
@@ -184,7 +198,7 @@ class MainWindow:
         SELECT time, code, name, type, qty
         FROM record
         ORDER BY id DESC
-        LIMIT 20
+        LIMIT 10
         """)
 
         for row in c.fetchall():
