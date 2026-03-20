@@ -45,7 +45,7 @@ class AdminWindow:
         # 热门排行 (粉色显示)
         self.rank_var = tk.StringVar()
         self.rank_var.set("排行加载中...")
-        tk.Label(stat_frame, textvariable=self.rank_var, font=('Helvetica', 13), bg="#FFF3E0", fg="#D81B60", justify=tk.LEFT).pack(side=tk.LEFT, padx=50)
+        tk.Label(stat_frame, textvariable=self.rank_var, font=('Helvetica', 12), bg="#FFF3E0", fg="#D81B60", justify=tk.LEFT).pack(side=tk.LEFT, padx=30, fill=tk.X, expand=True)
 
         # ===== 顶部搜索 (纯白背景区) =====
         search_bar = tk.Frame(self.root, bg="#FFFFFF", pady=15)
@@ -321,63 +321,66 @@ class AdminWindow:
 
 
     def load_stats(self):
-
         if self.role != "admin":
             self.stat_var.set("无权限查看")
             return
 
-        conn = get_conn()
-        c = conn.cursor()
+        try:
+            conn = get_conn()
+            c = conn.cursor()
 
-        # 今日
-        c.execute("""
-        SELECT SUM(r.qty * (g.price_out - g.price_in)), SUM(qty * g.price_out)
-        FROM record r
-        JOIN goods g ON r.code = g.code
-        WHERE r.type='out' AND date(time)=date('now')
-        """)
-        today = c.fetchone()
+            # 今日利润和销售额
+            c.execute("""
+            SELECT SUM(r.qty * (g.price_out - g.price_in)), SUM(r.qty * g.price_out)
+            FROM record r
+            JOIN goods g ON r.code = g.code
+            WHERE r.type='out' AND date(r.time) = date('now')
+            """)
+            today = c.fetchone()
 
-        # 近7天
-        c.execute("""
-        SELECT SUM(r.qty * (g.price_out - g.price_in)), SUM(qty * g.price_out)
-        FROM record r
-        JOIN goods g ON r.code = g.code
-        WHERE r.type='out' AND date(time)>=date('now','-7 day')
-        """)
-        week = c.fetchone()
+            # 七日利润和销售额
+            c.execute("""
+            SELECT SUM(r.qty * (g.price_out - g.price_in)), SUM(r.qty * g.price_out)
+            FROM record r
+            JOIN goods g ON r.code = g.code
+            WHERE r.type='out' AND date(r.time) >= date('now','-7 day')
+            """)
+            week = c.fetchone()
 
-        # 销量前5 (不限时间，或者可以设为近15天，这里根据要求显示前5)
-        c.execute("""
-            SELECT name, SUM(qty) as q FROM record
-            WHERE type='out' AND (name IS NOT NULL AND name != 'None' AND name != '')
-            GROUP BY code ORDER BY q DESC LIMIT 5
-        """)
-        top_qty = c.fetchall()
+            # 销量前5 (不限时间)
+            c.execute("""
+                SELECT name, SUM(qty) as q FROM record
+                WHERE type='out' AND (name IS NOT NULL AND name != 'None' AND name != '')
+                GROUP BY code ORDER BY q DESC LIMIT 5
+            """)
+            top_qty = c.fetchall()
 
-        # 销售额前5
-        c.execute("""
-            SELECT r.name, SUM(r.qty * g.price_out) as s
-            FROM record r JOIN goods g ON r.code = g.code
-            WHERE r.type='out' AND (r.name IS NOT NULL AND r.name != 'None' AND r.name != '')
-            GROUP BY r.code ORDER BY s DESC LIMIT 5
-        """)
-        top_sales = c.fetchall()
+            # 销售额前5 (不限时间)
+            c.execute("""
+                SELECT r.name, SUM(r.qty * g.price_out) as s
+                FROM record r JOIN goods g ON r.code = g.code
+                WHERE r.type='out' AND (r.name IS NOT NULL AND r.name != 'None' AND r.name != '')
+                GROUP BY r.code ORDER BY s DESC LIMIT 5
+            """)
+            top_sales = c.fetchall()
 
-        conn.close()
+            conn.close()
 
-        today_qty, today_sales = today if today else (0, 0)
-        week_qty, week_sales = week if week else (0, 0)
+            today_p, today_s = (today[0] or 0, today[1] or 0) if today else (0, 0)
+            week_p, week_s = (week[0] or 0, week[1] or 0) if week else (0, 0)
 
-        self.stat_var.set(
-            f"今日：利润 {today_qty or 0} / 销售额 {today_sales or 0}\n"
-            f"七日：利润 {week_qty or 0} / 销售额 {week_sales or 0}"
-        )
+            self.stat_var.set(
+                f"今日：利润 {today_p:.2f} / 销售额 {today_s:.2f}\n"
+                f"七日：利润 {week_p:.2f} / 销售额 {week_s:.2f}"
+            )
 
-        qty_str = " | ".join([f"{name}({q})" for name, q in top_qty])
-        sales_str = " | ".join([f"{name}({s})" for name, s in top_sales])
+            qty_str = " | ".join([f"{name}({q})" for name, q in top_qty]) if top_qty else "暂无数据"
+            sales_str = " | ".join([f"{name}({s:.1f})" for name, s in top_sales]) if top_sales else "暂无数据"
 
-        self.rank_var.set(
-            f"🔥 销量 Top5: {qty_str}\n"
-            f"💰 销售额 Top5: {sales_str}"
-        )
+            self.rank_var.set(
+                f"🔥 销量 Top5: {qty_str}\n"
+                f"💰 销售额 Top5: {sales_str}"
+            )
+        except Exception as e:
+            self.stat_var.set(f"数据加载出错: {e}")
+            self.rank_var.set("排行加载失败")
