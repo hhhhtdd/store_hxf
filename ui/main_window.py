@@ -135,7 +135,7 @@ class MainWindow:
         ttk.Label(info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=10)
 
         # ===== 近期记录 =====
-        record_frame = ttk.LabelFrame(self.root, text="最近 10 条交易记录")
+        record_frame = ttk.LabelFrame(self.root, text="最近 10 条出库记录")
         record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
 
         columns = ("时间", "编码", "名称", "类型", "数量")
@@ -198,6 +198,7 @@ class MainWindow:
         c.execute("""
         SELECT time, code, name, type, qty
         FROM record
+        WHERE type = 'out'
         ORDER BY id DESC
         LIMIT 10
         """)
