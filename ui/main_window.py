@@ -58,19 +58,21 @@ class MainWindow:
         top_bar.pack(fill=tk.X, padx=20, pady=(10, 5))
 
         ttk.Button(top_bar, text="后台管理", command=self.open_admin).pack(side=tk.RIGHT)
-        # ===== 输入框 =====
-        top_frame = ttk.Frame(self.root)
-        top_frame.pack(fill=tk.X, padx=20, pady=5)
 
-        ttk.Label(top_frame, text="搜索 (编码/名称/类别)：").pack(side=tk.LEFT)
+        # ===== 居中搜索框 =====
+        search_container = ttk.Frame(self.root)
+        search_container.pack(fill=tk.X, padx=100, pady=20)
 
-        self.entry = ttk.Entry(top_frame, font=('Helvetica', 11))
+        label_font = ('Helvetica', 12, 'bold')
+        ttk.Label(search_container, text="商品搜索：", font=label_font).pack(side=tk.LEFT)
+
+        self.entry = ttk.Entry(search_container, font=('Helvetica', 16))
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
         self.entry.focus_set()
 
         # ===== 绑定快捷键 =====
-        self.entry.bind("<Return>", lambda e: self.process_stock("out"))
-        self.entry.bind("<Shift-Return>", lambda e: self.process_stock("in"))
+        self.entry.bind("<Return>", lambda e: self.process_stock(ask_qty=False))
+        self.entry.bind("<Shift-Return>", lambda e: self.process_stock(ask_qty=True))
         self.entry.bind("<KeyRelease>", self.filter_data)
 
         # ===== 商品表 =====
@@ -87,6 +89,7 @@ class MainWindow:
             self.tree.column(col, anchor=tk.CENTER, width=120)
 
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
         # ===== 当前商品 =====
         info_frame = ttk.LabelFrame(self.root, text="操作反馈")
@@ -115,11 +118,24 @@ class MainWindow:
     def load_data(self):
         self.filter_data()
 
+    def on_tree_select(self, event):
+        selected = self.tree.focus()
+        if not selected:
+            return
+        values = self.tree.item(selected, "values")
+        if values:
+            code = values[0]
+            self.entry.delete(0, tk.END)
+            self.entry.insert(0, code)
+
     def filter_data(self, event=None):
         keyword = self.entry.get().strip()
 
         for i in self.tree.get_children():
             self.tree.delete(i)
+
+        if not keyword:
+            return
 
         conn = get_conn()
         c = conn.cursor()
@@ -157,7 +173,7 @@ class MainWindow:
         conn.close()
 
     # ================= 核心业务 =================
-    def process_stock(self, mode):
+    def process_stock(self, ask_qty=False):
 
         code = self.entry.get().strip()
         if not code:
@@ -171,31 +187,38 @@ class MainWindow:
         row = c.fetchone()
 
         if not row:
-            self.current_label.set(f"❌ 商品不存在: {code}")
-            conn.close()
-            return
+            # 尝试通过模糊匹配到的第一个结果
+            c.execute("SELECT code, name, stock, price_out FROM goods WHERE code LIKE ? OR name LIKE ? OR type LIKE ? LIMIT 1", (f"%{code}%", f"%{code}%", f"%{code}%"))
+            row = c.fetchone()
+            if not row:
+                self.current_label.set(f"❌ 商品不存在: {code}")
+                conn.close()
+                return
+            code, name, stock, price = row
+        else:
+            name, stock, price = row
 
-        name, stock, price = row
+        # 确定数量
+        if ask_qty:
+            qty = askinteger("数量", f"[{name}] 入库/出库 数量", minvalue=1)
+            if not qty:
+                conn.close()
+                return
+        else:
+            qty = 1
 
-        # 输入数量
-        qty = askinteger("数量", "输入数量", minvalue=1)
-        if not qty:
-            conn.close()
-            return
+        # 默认前台只有出库 (mode = out)
+        mode = "out"
 
         # 库存检查
-        if mode == "out" and stock < qty:
+        if stock < qty:
             self.current_label.set("❌ 库存不足")
             conn.close()
             return
 
         # 更新库存
-        if mode == "in":
-            c.execute("UPDATE goods SET stock = stock + ? WHERE code=?", (qty, code))
-            new_stock = stock + qty
-        else:
-            c.execute("UPDATE goods SET stock = stock - ? WHERE code=?", (qty, code))
-            new_stock = stock - qty
+        c.execute("UPDATE goods SET stock = stock - ? WHERE code=?", (qty, code))
+        new_stock = stock - qty
 
         # 写入记录
         c.execute("""
@@ -207,7 +230,7 @@ class MainWindow:
         conn.close()
 
         # 更新UI
-        action = "入库" if mode == "in" else "出库"
+        action = "出库"
 
         self.current_label.set(
             f"{action}成功 | {name} | 数量:{qty} | 剩余:{new_stock}"

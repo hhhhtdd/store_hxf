@@ -66,6 +66,8 @@ class AdminWindow:
             ttk.Button(bottom, text="新增商品", command=self.add_goods).pack(side=tk.LEFT, padx=5)
             ttk.Button(bottom, text="删除商品", command=self.delete_goods).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom, text="刷新数据", command=self.load_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom, text="交易明细", command=self.show_records).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom, text="统计图表", command=self.show_charts).pack(side=tk.LEFT, padx=5)
 
     # ================= 数据 =================
     def load_data(self):
@@ -217,6 +219,127 @@ class AdminWindow:
 
         ttk.Button(win, text="保存修改", command=save).grid(row=8, columnspan=2, pady=20)
 
+
+    def show_records(self):
+        win = tk.Toplevel(self.root)
+        win.title("交易明细")
+        win.geometry("800x500")
+
+        columns = ("id", "code", "name", "type", "qty", "time")
+        tree = ttk.Treeview(win, columns=columns, show="headings")
+        headers = ["ID", "编码", "名称", "类型", "数量", "时间"]
+        for col, text in zip(columns, headers):
+            tree.heading(col, text=text)
+            tree.column(col, width=100, anchor=tk.CENTER)
+        tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        def load_record_data():
+            for i in tree.get_children():
+                tree.delete(i)
+            conn = get_conn()
+            c = conn.cursor()
+            c.execute("SELECT id, code, name, type, qty, time FROM record ORDER BY id DESC LIMIT 200")
+            for row in c.fetchall():
+                tree.insert("", tk.END, values=row)
+            conn.close()
+
+        def on_right_click(event):
+            item = tree.identify_row(event.y)
+            if item:
+                tree.selection_set(item)
+                menu = tk.Menu(win, tearoff=0)
+                menu.add_command(label="撤回记录", command=lambda: withdraw_record(tree.item(item, "values")))
+                menu.post(event.x_root, event.y_root)
+
+        def withdraw_record(values):
+            if not values: return
+            rec_id, code, name, mode, qty, _ = values
+            if not messagebox.askyesno("确认", f"确定撤回记录 [ID:{rec_id}]？\n这将回退库存和统计数据。"):
+                return
+
+            conn = get_conn()
+            c = conn.cursor()
+            try:
+                # 回退库存
+                if mode == 'out':
+                    c.execute("UPDATE goods SET stock = stock + ? WHERE code=?", (qty, code))
+                else:
+                    c.execute("UPDATE goods SET stock = stock - ? WHERE code=?", (qty, code))
+
+                # 删除记录
+                c.execute("DELETE FROM record WHERE id=?", (rec_id,))
+                conn.commit()
+                messagebox.showinfo("成功", "记录已撤回")
+                load_record_data()
+                self.load_data() # 刷新主表和统计
+            except Exception as e:
+                conn.rollback()
+                messagebox.showerror("错误", str(e))
+            finally:
+                conn.close()
+
+        tree.bind("<Button-3>", on_right_click)
+        load_record_data()
+
+    def show_charts(self):
+        import matplotlib.pyplot as plt
+        from matplotlib import rcParams
+
+        # 设置中文字体 (尝试几种常见的)
+        rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial']
+        rcParams['axes.unicode_minus'] = False
+
+        conn = get_conn()
+        c = conn.cursor()
+
+        # 最近15天销量前十
+        c.execute("""
+            SELECT name, SUM(qty) as total_qty
+            FROM record
+            WHERE type='out' AND date(time) >= date('now', '-15 day')
+            GROUP BY code
+            ORDER BY total_qty DESC
+            LIMIT 10
+        """)
+        qty_data = c.fetchall()
+
+        # 最近15天销售额前十
+        c.execute("""
+            SELECT r.name, SUM(r.qty * g.price_out) as total_sales
+            FROM record r
+            JOIN goods g ON r.code = g.code
+            WHERE r.type='out' AND date(r.time) >= date('now', '-15 day')
+            GROUP BY r.code
+            ORDER BY total_sales DESC
+            LIMIT 10
+        """)
+        sales_data = c.fetchall()
+        conn.close()
+
+        if not qty_data and not sales_data:
+            messagebox.showinfo("提示", "最近15天没有销售记录")
+            return
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+
+        if qty_data:
+            labels = [f"{d[0]}" for d in qty_data]
+            sizes = [d[1] for d in qty_data]
+            ax1.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+            ax1.set_title("最近15天销量前十")
+        else:
+            ax1.text(0.5, 0.5, '暂无销量数据', ha='center', va='center')
+
+        if sales_data:
+            labels = [f"{d[0]}" for d in sales_data]
+            sizes = [d[1] for d in sales_data]
+            ax2.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+            ax2.set_title("最近15天销售额前十")
+        else:
+            ax2.text(0.5, 0.5, '暂无销售额数据', ha='center', va='center')
+
+        plt.tight_layout()
+        plt.show()
 
     def load_stats(self):
 
