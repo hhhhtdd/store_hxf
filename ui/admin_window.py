@@ -374,6 +374,6 @@ class AdminWindow:
         week_qty, week_sales = week if week else (0, 0)
 
         self.stat_var.set(
-            f"今日利润:{today_qty or 0} | 今日销售额:{today_sales or 0}\n"
-            f"7天利润:{week_qty or 0} | 7天销售额:{week_sales or 0}"
+            f"今日利润:{today_qty or 0}元   |   今日销售额:{today_sales or 0}元\n"
+            f"7天利润:{week_qty or 0}元   |   7天销售额:{week_sales or 0}元"
         )
