@@ -88,57 +88,63 @@ class AdminWindow:
 
     # ================= 数据 =================
     def load_data(self):
-        self.load_stats()
-        for i in self.tree.get_children():
-            self.tree.delete(i)
+        try:
+            self.load_stats()
+            for i in self.tree.get_children():
+                self.tree.delete(i)
 
-        conn = get_conn()
-        c = conn.cursor()
+            conn = get_conn()
+            c = conn.cursor()
 
-        # 联查交易记录计算总销售额，并按总销售额排序
-        c.execute("""
-            SELECT g.code, g.name, g.type, g.stock, g.warn_line, g.price_in, g.price_out,
-                   COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
-            FROM goods g
-            LEFT JOIN record r ON g.code = r.code
-            WHERE g.name IS NOT NULL AND g.name != 'None' AND g.name != ''
-            GROUP BY g.code
-            ORDER BY total_sales DESC
-        """)
+            # 联查交易记录计算总销售额，并按总销售额排序
+            c.execute("""
+                SELECT g.code, g.name, g.type, g.stock, g.warn_line, g.price_in, g.price_out,
+                    COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
+                FROM goods g
+                LEFT JOIN record r ON g.code = r.code
+                WHERE g.name IS NOT NULL AND g.name != 'None' AND g.name != ''
+                GROUP BY g.code
+                ORDER BY total_sales DESC
+            """)
 
-        rows = c.fetchall()
-        for idx, row in enumerate(rows):
-            tag = "top5" if idx < 5 else ""
-            self.tree.insert("", tk.END, values=row, tags=(tag,))
+            rows = c.fetchall()
+            for idx, row in enumerate(rows):
+                tag = "top5" if idx < 5 else ""
+                self.tree.insert("", tk.END, values=row, tags=(tag,))
 
-        conn.close()
+            conn.close()
+        except Exception as e:
+            messagebox.showerror("数据加载失败", str(e))
 
     def search(self, event=None):
-        keyword = self.search_entry.get().strip()
+        try:
+            keyword = self.search_entry.get().strip()
 
-        conn = get_conn()
-        c = conn.cursor()
+            conn = get_conn()
+            c = conn.cursor()
 
-        c.execute("""
-            SELECT g.code, g.name, g.type, g.stock, g.warn_line, g.price_in, g.price_out,
-                   COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
-            FROM goods g
-            LEFT JOIN record r ON g.code = r.code
-            WHERE (g.code LIKE ? OR g.name LIKE ? OR g.type LIKE ?)
-              AND (g.name IS NOT NULL AND g.name != 'None' AND g.name != '')
-            GROUP BY g.code
-            ORDER BY total_sales DESC
-        """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
+            c.execute("""
+                SELECT g.code, g.name, g.type, g.stock, g.warn_line, g.price_in, g.price_out,
+                    COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
+                FROM goods g
+                LEFT JOIN record r ON g.code = r.code
+                WHERE (g.code LIKE ? OR g.name LIKE ? OR g.type LIKE ?)
+                AND (g.name IS NOT NULL AND g.name != 'None' AND g.name != '')
+                GROUP BY g.code
+                ORDER BY total_sales DESC
+            """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
 
-        rows = c.fetchall()
-        conn.close()
+            rows = c.fetchall()
+            conn.close()
 
-        for i in self.tree.get_children():
-            self.tree.delete(i)
+            for i in self.tree.get_children():
+                self.tree.delete(i)
 
-        for idx, row in enumerate(rows):
-            tag = "top5" if idx < 5 else ""
-            self.tree.insert("", tk.END, values=row, tags=(tag,))
+            for idx, row in enumerate(rows):
+                tag = "top5" if idx < 5 else ""
+                self.tree.insert("", tk.END, values=row, tags=(tag,))
+        except Exception as e:
+            messagebox.showerror("查询失败", str(e))
 
     # ================= 操作 =================
     def add_goods(self):

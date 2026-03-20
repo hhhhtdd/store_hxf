@@ -66,9 +66,9 @@ class MainWindow:
 
         win = tk.Toplevel(self.root)
 
-        # ⭐ 传入权限和刷新回调
+        # ⭐ 传入权限和刷新回调，并保持引用
         from ui.admin_window import AdminWindow
-        AdminWindow(win, role, refresh_callback=self.load_records)
+        self.admin_win_instance = AdminWindow(win, role, refresh_callback=self.load_records)
     # ================= UI =================
     def build_ui(self):
 
