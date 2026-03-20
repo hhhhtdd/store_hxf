@@ -9,13 +9,29 @@ class MainWindow:
     def __init__(self, root):
         self.root = root
         self.root.title("理工文具店管理系统")
-        self.root.geometry("1200x900")
+        self.root.geometry("1400x950")
+        self.root.configure(bg="#F5F5F7")  # Apple-style light gray background
 
         self.style = ttk.Style()
-        self.style.configure("TButton", padding=6, font=('Helvetica', 10))
-        self.style.configure("Treeview.Heading", font=('Helvetica', 10, 'bold'))
-        self.style.configure("TLabel", font=('Helvetica', 10))
-        self.style.configure("TLabelframe.Label", font=('Helvetica', 10, 'bold'))
+        self.style.theme_use('clam')
+
+        # Apple-inspired color palette
+        # Search area: #FFFFFF
+        # Treeview: #FFFFFF, Selection: #0071E3 (Apple Blue)
+        # Feedback: #F5F5F7
+
+        self.style.configure("TFrame", background="#F5F5F7")
+        self.style.configure("TLabelframe", background="#F5F5F7", bordercolor="#D2D2D7")
+        self.style.configure("TLabelframe.Label", background="#F5F5F7", font=('Helvetica', 14, 'bold'), foreground="#1D1D1F")
+
+        self.style.configure("TButton", padding=10, font=('Helvetica', 14), background="#FFFFFF", bordercolor="#D2D2D7")
+        self.style.map("TButton", background=[('active', '#F5F5F7')])
+
+        self.style.configure("TLabel", font=('Helvetica', 14), background="#F5F5F7", foreground="#1D1D1F")
+
+        self.style.configure("Treeview", font=('Helvetica', 13), rowheight=35, background="#FFFFFF", fieldbackground="#FFFFFF")
+        self.style.configure("Treeview.Heading", font=('Helvetica', 14, 'bold'), background="#F5F5F7")
+        self.style.map("Treeview", background=[('selected', '#0071E3')], foreground=[('selected', '#FFFFFF')])
 
         self.build_ui()
         self.load_data()
@@ -53,21 +69,25 @@ class MainWindow:
     # ================= UI =================
     def build_ui(self):
 
-        # ===== 顶部工具栏 =====
-        top_bar = ttk.Frame(self.root)
-        top_bar.pack(fill=tk.X, padx=20, pady=(10, 5))
+        # ===== 顶部工具栏 (薄荷绿背景/淡雅) =====
+        top_bar = tk.Frame(self.root, bg="#E8F5E9", height=60) # Light Green
+        top_bar.pack(fill=tk.X)
+        top_bar.pack_propagate(False)
 
-        ttk.Button(top_bar, text="后台管理", command=self.open_admin).pack(side=tk.RIGHT)
+        ttk.Button(top_bar, text="后台管理", command=self.open_admin).pack(side=tk.RIGHT, padx=20, pady=5)
+        tk.Label(top_bar, text="理工文具店收银终端", font=('Helvetica', 18, 'bold'), bg="#E8F5E9", fg="#2E7D32").pack(side=tk.LEFT, padx=30)
 
-        # ===== 居中搜索框 =====
-        search_container = ttk.Frame(self.root)
-        search_container.pack(fill=tk.X, padx=100, pady=20)
+        # ===== 居中搜索框 (纯白区域) =====
+        search_section = tk.Frame(self.root, bg="#FFFFFF", pady=40)
+        search_section.pack(fill=tk.X)
 
-        label_font = ('Helvetica', 12, 'bold')
-        ttk.Label(search_container, text="商品搜索：", font=label_font).pack(side=tk.LEFT)
+        search_container = tk.Frame(search_section, bg="#FFFFFF")
+        search_container.pack(expand=True)
 
-        self.entry = ttk.Entry(search_container, font=('Helvetica', 16))
-        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
+        tk.Label(search_container, text="🔍", font=('Helvetica', 24), bg="#FFFFFF").pack(side=tk.LEFT, padx=(0, 10))
+
+        self.entry = tk.Entry(search_container, font=('Helvetica', 24), width=40, bd=0, highlightthickness=1, highlightcolor="#0071E3", highlightbackground="#D2D2D7")
+        self.entry.pack(side=tk.LEFT, ipady=8, padx=10)
         self.entry.focus_set()
 
         # ===== 绑定快捷键 =====
@@ -112,7 +132,7 @@ class MainWindow:
             self.record_table.heading(col, text=col)
             self.record_table.column(col, anchor=tk.CENTER, width=100)
 
-        self.record_table.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.record_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     # ================= 商品数据 =================
     def load_data(self):

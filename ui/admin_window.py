@@ -7,12 +7,22 @@ class AdminWindow:
     def __init__(self, root, role='admin'):
         self.root = root
         self.root.title("后台库存管理")
-        self.root.geometry("1100x700")
+        self.root.geometry("1300x850")
+        self.root.configure(bg="#F5F5F7")
         self.role = role
 
         self.style = ttk.Style()
-        self.style.configure("TButton", padding=6)
-        self.style.configure("Treeview.Heading", font=('Helvetica', 10, 'bold'))
+        self.style.theme_use('clam')
+
+        self.style.configure("TFrame", background="#F5F5F7")
+        self.style.configure("TLabelframe", background="#F5F5F7", bordercolor="#D2D2D7")
+        self.style.configure("TLabelframe.Label", background="#F5F5F7", font=('Helvetica', 14, 'bold'), foreground="#1D1D1F")
+        self.style.configure("TButton", padding=10, font=('Helvetica', 13), background="#FFFFFF")
+        self.style.configure("TLabel", font=('Helvetica', 13), background="#F5F5F7")
+
+        self.style.configure("Treeview", font=('Helvetica', 12), rowheight=30, background="#FFFFFF")
+        self.style.configure("Treeview.Heading", font=('Helvetica', 13, 'bold'), background="#F5F5F7")
+        self.style.map("Treeview", background=[('selected', '#0071E3')], foreground=[('selected', '#FFFFFF')])
 
         self.build_ui()
         self.load_data()
@@ -20,27 +30,32 @@ class AdminWindow:
     # ================= UI =================
     def build_ui(self):
 
-        # ===== 统计信息 =====
-        stat_frame = ttk.LabelFrame(self.root, text="核心运营数据")
-        stat_frame.pack(fill=tk.X, padx=20, pady=10)
+        # ===== 统计信息 (淡雅橙色背景区) =====
+        stat_frame = tk.Frame(self.root, bg="#FFF3E0", pady=15) # Light Orange
+        stat_frame.pack(fill=tk.X)
 
         self.stat_var = tk.StringVar()
         self.stat_var.set("加载中...")
 
-        ttk.Label(stat_frame, textvariable=self.stat_var, font=('Helvetica', 11, 'bold'), foreground="#d35400").pack(anchor="w", padx=15, pady=10)
+        tk.Label(stat_frame, textvariable=self.stat_var, font=('Helvetica', 14, 'bold'), bg="#FFF3E0", fg="#E65100", justify=tk.LEFT).pack(side=tk.LEFT, padx=30)
 
-        # ===== 顶部搜索 =====
-        top = ttk.Frame(self.root)
-        top.pack(fill=tk.X, padx=20, pady=5)
+        # 热门排行 (粉色显示)
+        self.rank_var = tk.StringVar()
+        self.rank_var.set("排行加载中...")
+        tk.Label(stat_frame, textvariable=self.rank_var, font=('Helvetica', 13), bg="#FFF3E0", fg="#D81B60", justify=tk.LEFT).pack(side=tk.LEFT, padx=50)
 
-        ttk.Label(top, text="搜索 (编码/名称/类别)：").pack(side=tk.LEFT)
+        # ===== 顶部搜索 (纯白背景区) =====
+        search_bar = tk.Frame(self.root, bg="#FFFFFF", pady=15)
+        search_bar.pack(fill=tk.X)
 
-        self.search_entry = ttk.Entry(top, width=40)
-        self.search_entry.pack(side=tk.LEFT, padx=10)
+        tk.Label(search_bar, text="🔍 搜索：", font=('Helvetica', 14), bg="#FFFFFF").pack(side=tk.LEFT, padx=(30, 10))
+
+        self.search_entry = tk.Entry(search_bar, font=('Helvetica', 14), width=35, bd=0, highlightthickness=1, highlightbackground="#D2D2D7")
+        self.search_entry.pack(side=tk.LEFT, padx=10, ipady=5)
         self.search_entry.bind("<KeyRelease>", self.search)
 
-        ttk.Button(top, text="查询", command=self.search).pack(side=tk.LEFT, padx=2)
-        ttk.Button(top, text="显示全部", command=self.load_data).pack(side=tk.LEFT, padx=2)
+        ttk.Button(search_bar, text="查询", command=self.search).pack(side=tk.LEFT, padx=5)
+        ttk.Button(search_bar, text="显示全部", command=self.load_data).pack(side=tk.LEFT, padx=5)
 
         # ===== 表格 =====
         columns = ("code","name","type","stock","warn","price_in","price_out")
@@ -67,7 +82,6 @@ class AdminWindow:
             ttk.Button(bottom, text="删除商品", command=self.delete_goods).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom, text="刷新数据", command=self.load_data).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom, text="交易明细", command=self.show_records).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom, text="统计图表", command=self.show_charts).pack(side=tk.LEFT, padx=5)
 
     # ================= 数据 =================
     def load_data(self):
@@ -281,65 +295,6 @@ class AdminWindow:
         tree.bind("<Button-3>", on_right_click)
         load_record_data()
 
-    def show_charts(self):
-        import matplotlib.pyplot as plt
-        from matplotlib import rcParams
-
-        # 设置中文字体 (尝试几种常见的)
-        rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial']
-        rcParams['axes.unicode_minus'] = False
-
-        conn = get_conn()
-        c = conn.cursor()
-
-        # 最近15天销量前十
-        c.execute("""
-            SELECT name, SUM(qty) as total_qty
-            FROM record
-            WHERE type='out' AND date(time) >= date('now', '-15 day')
-            GROUP BY code
-            ORDER BY total_qty DESC
-            LIMIT 10
-        """)
-        qty_data = c.fetchall()
-
-        # 最近15天销售额前十
-        c.execute("""
-            SELECT r.name, SUM(r.qty * g.price_out) as total_sales
-            FROM record r
-            JOIN goods g ON r.code = g.code
-            WHERE r.type='out' AND date(r.time) >= date('now', '-15 day')
-            GROUP BY r.code
-            ORDER BY total_sales DESC
-            LIMIT 10
-        """)
-        sales_data = c.fetchall()
-        conn.close()
-
-        if not qty_data and not sales_data:
-            messagebox.showinfo("提示", "最近15天没有销售记录")
-            return
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-
-        if qty_data:
-            labels = [f"{d[0]}" for d in qty_data]
-            sizes = [d[1] for d in qty_data]
-            ax1.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
-            ax1.set_title("最近15天销量前十")
-        else:
-            ax1.text(0.5, 0.5, '暂无销量数据', ha='center', va='center')
-
-        if sales_data:
-            labels = [f"{d[0]}" for d in sales_data]
-            sizes = [d[1] for d in sales_data]
-            ax2.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
-            ax2.set_title("最近15天销售额前十")
-        else:
-            ax2.text(0.5, 0.5, '暂无销售额数据', ha='center', va='center')
-
-        plt.tight_layout()
-        plt.show()
 
     def load_stats(self):
 
@@ -368,12 +323,35 @@ class AdminWindow:
         """)
         week = c.fetchone()
 
+        # 销量前5 (不限时间，或者可以设为近15天，这里根据要求显示前5)
+        c.execute("""
+            SELECT name, SUM(qty) as q FROM record
+            WHERE type='out' GROUP BY code ORDER BY q DESC LIMIT 5
+        """)
+        top_qty = c.fetchall()
+
+        # 销售额前5
+        c.execute("""
+            SELECT r.name, SUM(r.qty * g.price_out) as s
+            FROM record r JOIN goods g ON r.code = g.code
+            WHERE r.type='out' GROUP BY r.code ORDER BY s DESC LIMIT 5
+        """)
+        top_sales = c.fetchall()
+
         conn.close()
 
         today_qty, today_sales = today if today else (0, 0)
         week_qty, week_sales = week if week else (0, 0)
 
         self.stat_var.set(
-            f"今日利润:{today_qty or 0} | 今日销售额:{today_sales or 0}\n"
-            f"7天利润:{week_qty or 0} | 7天销售额:{week_sales or 0}"
+            f"今日：利润 {today_qty or 0} / 销售额 {today_sales or 0}\n"
+            f"七日：利润 {week_qty or 0} / 销售额 {week_sales or 0}"
+        )
+
+        qty_str = " | ".join([f"{name}({q})" for name, q in top_qty])
+        sales_str = " | ".join([f"{name}({s})" for name, s in top_sales])
+
+        self.rank_var.set(
+            f"🔥 销量 Top5: {qty_str}\n"
+            f"💰 销售额 Top5: {sales_str}"
         )
