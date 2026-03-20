@@ -138,12 +138,14 @@ class MainWindow:
         record_frame = ttk.LabelFrame(self.root, text="最近 10 条出库记录")
         record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
 
-        columns = ("时间", "编码", "名称", "类型", "数量")
+        # Use English IDs for columns internally, Chinese for headings
+        record_cols = ("time", "code", "name", "type", "qty")
+        record_headers = ("时间", "编码", "名称", "类型", "数量")
 
-        self.record_table = ttk.Treeview(record_frame, columns=columns, show="headings", height=10)
+        self.record_table = ttk.Treeview(record_frame, columns=record_cols, show="headings", height=10)
 
-        for col in columns:
-            self.record_table.heading(col, text=col)
+        for col, head in zip(record_cols, record_headers):
+            self.record_table.heading(col, text=head)
             self.record_table.column(col, anchor=tk.CENTER, width=100)
 
         self.record_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -195,6 +197,7 @@ class MainWindow:
         conn = get_conn()
         c = conn.cursor()
 
+        # Selection order must match the record_cols order: (time, code, name, type, qty)
         c.execute("""
         SELECT time, code, name, type, qty
         FROM record
@@ -203,7 +206,8 @@ class MainWindow:
         LIMIT 10
         """)
 
-        for row in c.fetchall():
+        rows = c.fetchall()
+        for row in rows:
             self.record_table.insert("", tk.END, values=row)
 
         conn.close()
