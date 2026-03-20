@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from tkinter.simpledialog import askinteger
 from db import get_conn
 
@@ -177,7 +177,8 @@ class MainWindow:
         c.execute("""
             SELECT code, name, stock, price_out
             FROM goods
-            WHERE code LIKE ? OR name LIKE ? OR type LIKE ?
+            WHERE (code LIKE ? OR name LIKE ? OR type LIKE ?)
+              AND (name IS NOT NULL AND name != 'None' AND name != '')
         """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
 
         for row in c.fetchall():
@@ -247,6 +248,7 @@ class MainWindow:
 
         # 库存检查
         if stock < qty:
+            messagebox.showerror("错误", "库存不足")
             self.current_label.set("❌ 库存不足")
             conn.close()
             return
@@ -267,9 +269,9 @@ class MainWindow:
         # 更新UI
         action = "出库"
 
-        self.current_label.set(
-            f"✅ 操作成功 | {name} | 数量:{qty} | 剩余:{new_stock}"
-        )
+        success_msg = f"操作成功 | {name} | 数量:{qty} | 剩余:{new_stock}"
+        messagebox.showinfo("成功", success_msg)
+        self.current_label.set(f"✅ {success_msg}")
 
         self.load_data()
         self.load_records()
