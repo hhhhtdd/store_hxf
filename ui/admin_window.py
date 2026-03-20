@@ -4,12 +4,13 @@ from db import get_conn
 
 class AdminWindow:
 
-    def __init__(self, root, role='admin'):
+    def __init__(self, root, role='admin', refresh_callback=None):
         self.root = root
         self.root.title("后台库存管理")
         self.root.geometry("1300x850")
         self.root.configure(bg="#F5F5F7")
         self.role = role
+        self.refresh_callback = refresh_callback
 
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -60,19 +61,13 @@ class AdminWindow:
         ttk.Button(search_bar, text="显示全部", command=self.load_data).pack(side=tk.LEFT, padx=5)
 
         # ===== 表格 =====
-        columns = ("code","name","type","stock","warn","price_in","price_out")
-
+        columns = ("code","name","type","stock","warn","price_in","price_out", "total_sales")
         self.tree = ttk.Treeview(self.root, columns=columns, show="headings")
 
         headers = ["编码","名称","类别","库存","预警线","进价","售价", "总销售额"]
         for col, text in zip(columns, headers):
             self.tree.heading(col, text=text)
             self.tree.column(col, width=120, anchor=tk.CENTER)
-
-        # 额外列显示总销售额
-        self.tree["columns"] = columns + ("total_sales",)
-        self.tree.heading("total_sales", text="总销售额")
-        self.tree.column("total_sales", width=120, anchor=tk.CENTER)
 
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
         self.tree.tag_configure("top5", background="#E1F5FE", foreground="#01579B") # Light Blue Highlight
@@ -313,6 +308,8 @@ class AdminWindow:
                 messagebox.showinfo("成功", "记录已撤回")
                 load_record_data()
                 self.load_data() # 刷新主表和统计
+                if self.refresh_callback:
+                    self.refresh_callback()
             except Exception as e:
                 conn.rollback()
                 messagebox.showerror("错误", str(e))
@@ -353,7 +350,8 @@ class AdminWindow:
         # 销量前5 (不限时间，或者可以设为近15天，这里根据要求显示前5)
         c.execute("""
             SELECT name, SUM(qty) as q FROM record
-            WHERE type='out' GROUP BY code ORDER BY q DESC LIMIT 5
+            WHERE type='out' AND (name IS NOT NULL AND name != 'None' AND name != '')
+            GROUP BY code ORDER BY q DESC LIMIT 5
         """)
         top_qty = c.fetchall()
 
@@ -361,7 +359,8 @@ class AdminWindow:
         c.execute("""
             SELECT r.name, SUM(r.qty * g.price_out) as s
             FROM record r JOIN goods g ON r.code = g.code
-            WHERE r.type='out' GROUP BY r.code ORDER BY s DESC LIMIT 5
+            WHERE r.type='out' AND (r.name IS NOT NULL AND r.name != 'None' AND r.name != '')
+            GROUP BY r.code ORDER BY s DESC LIMIT 5
         """)
         top_sales = c.fetchall()
 
