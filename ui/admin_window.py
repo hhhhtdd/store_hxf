@@ -17,12 +17,14 @@ class AdminWindow:
         self.style.configure("TFrame", background="#F5F5F7")
         self.style.configure("TLabelframe", background="#F5F5F7", bordercolor="#D2D2D7")
         self.style.configure("TLabelframe.Label", background="#F5F5F7", font=('Helvetica', 14, 'bold'), foreground="#1D1D1F")
-        self.style.configure("TButton", padding=10, font=('Helvetica', 13), background="#FFFFFF")
+        self.style.configure("IOS.TButton", padding=10, font=('Helvetica', 13, 'bold'), background="#FFFFFF", foreground="#0071E3")
         self.style.configure("TLabel", font=('Helvetica', 13), background="#F5F5F7")
 
-        self.style.configure("Treeview", font=('Helvetica', 12), rowheight=30, background="#FFFFFF")
+        self.style.configure("Treeview", font=('Helvetica', 12), rowheight=35, background="#FFFFFF")
         self.style.configure("Treeview.Heading", font=('Helvetica', 13, 'bold'), background="#F5F5F7")
         self.style.map("Treeview", background=[('selected', '#0071E3')], foreground=[('selected', '#FFFFFF')])
+
+        self.style.map("IOS.TButton", background=[('active', '#F5F5F7')])
 
         self.build_ui()
         self.load_data()
@@ -62,12 +64,18 @@ class AdminWindow:
 
         self.tree = ttk.Treeview(self.root, columns=columns, show="headings")
 
-        headers = ["编码","名称","类别","库存","预警线","进价","售价"]
+        headers = ["编码","名称","类别","库存","预警线","进价","售价", "总销售额"]
         for col, text in zip(columns, headers):
             self.tree.heading(col, text=text)
             self.tree.column(col, width=120, anchor=tk.CENTER)
 
+        # 额外列显示总销售额
+        self.tree["columns"] = columns + ("total_sales",)
+        self.tree.heading("total_sales", text="总销售额")
+        self.tree.column("total_sales", width=120, anchor=tk.CENTER)
+
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        self.tree.tag_configure("top5", background="#E1F5FE", foreground="#01579B") # Light Blue Highlight
 
         if self.role == 'admin':
             self.tree.bind("<Double-1>", self.on_double_click)
@@ -78,10 +86,10 @@ class AdminWindow:
 
 
         if self.role == 'admin':
-            ttk.Button(bottom, text="新增商品", command=self.add_goods).pack(side=tk.LEFT, padx=5)
-            ttk.Button(bottom, text="删除商品", command=self.delete_goods).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom, text="刷新数据", command=self.load_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom, text="交易明细", command=self.show_records).pack(side=tk.LEFT, padx=5)
+            ttk.Button(bottom, text="新增商品", command=self.add_goods, style="IOS.TButton").pack(side=tk.LEFT, padx=10)
+            ttk.Button(bottom, text="删除商品", command=self.delete_goods, style="IOS.TButton").pack(side=tk.LEFT, padx=10)
+        ttk.Button(bottom, text="刷新数据", command=self.load_data, style="IOS.TButton").pack(side=tk.LEFT, padx=10)
+        ttk.Button(bottom, text="交易明细", command=self.show_records, style="IOS.TButton").pack(side=tk.LEFT, padx=10)
 
     # ================= 数据 =================
     def load_data(self):
@@ -91,10 +99,21 @@ class AdminWindow:
 
         conn = get_conn()
         c = conn.cursor()
-        c.execute("SELECT * FROM goods")
 
-        for row in c.fetchall():
-            self.tree.insert("", tk.END, values=row)
+        # 联查交易记录计算总销售额，并按总销售额排序
+        c.execute("""
+            SELECT g.code, g.name, g.type, g.stock, g.warn_line, g.price_in, g.price_out,
+                   COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
+            FROM goods g
+            LEFT JOIN record r ON g.code = r.code
+            GROUP BY g.code
+            ORDER BY total_sales DESC
+        """)
+
+        rows = c.fetchall()
+        for idx, row in enumerate(rows):
+            tag = "top5" if idx < 5 else ""
+            self.tree.insert("", tk.END, values=row, tags=(tag,))
 
         conn.close()
 
@@ -105,8 +124,13 @@ class AdminWindow:
         c = conn.cursor()
 
         c.execute("""
-        SELECT * FROM goods
-        WHERE code LIKE ? OR name LIKE ? OR type LIKE ?
+            SELECT g.code, g.name, g.type, g.stock, g.warn_line, g.price_in, g.price_out,
+                   COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
+            FROM goods g
+            LEFT JOIN record r ON g.code = r.code
+            WHERE g.code LIKE ? OR g.name LIKE ? OR g.type LIKE ?
+            GROUP BY g.code
+            ORDER BY total_sales DESC
         """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
 
         rows = c.fetchall()
@@ -115,8 +139,9 @@ class AdminWindow:
         for i in self.tree.get_children():
             self.tree.delete(i)
 
-        for row in rows:
-            self.tree.insert("", tk.END, values=row)
+        for idx, row in enumerate(rows):
+            tag = "top5" if idx < 5 else ""
+            self.tree.insert("", tk.END, values=row, tags=(tag,))
 
     # ================= 操作 =================
     def add_goods(self):
