@@ -11,6 +11,12 @@ class MainWindow:
         self.root.title("理工文具店管理系统")
         self.root.geometry("1200x900")
 
+        self.style = ttk.Style()
+        self.style.configure("TButton", padding=6, font=('Helvetica', 10))
+        self.style.configure("Treeview.Heading", font=('Helvetica', 10, 'bold'))
+        self.style.configure("TLabel", font=('Helvetica', 10))
+        self.style.configure("TLabelframe.Label", font=('Helvetica', 10, 'bold'))
+
         self.build_ui()
         self.load_data()
         self.load_records()
@@ -49,27 +55,28 @@ class MainWindow:
 
         # ===== 顶部工具栏 =====
         top_bar = ttk.Frame(self.root)
-        top_bar.pack(fill=tk.X, padx=10, pady=5)
+        top_bar.pack(fill=tk.X, padx=20, pady=(10, 5))
 
         ttk.Button(top_bar, text="后台管理", command=self.open_admin).pack(side=tk.RIGHT)
         # ===== 输入框 =====
         top_frame = ttk.Frame(self.root)
-        top_frame.pack(fill=tk.X, padx=10, pady=5)
+        top_frame.pack(fill=tk.X, padx=20, pady=5)
 
-        ttk.Label(top_frame, text="商品编码：").pack(side=tk.LEFT)
+        ttk.Label(top_frame, text="搜索 (编码/名称/类别)：").pack(side=tk.LEFT)
 
-        self.entry = ttk.Entry(top_frame)
-        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        self.entry = ttk.Entry(top_frame, font=('Helvetica', 11))
+        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
         self.entry.focus_set()
 
         # ===== 绑定快捷键 =====
         self.entry.bind("<Return>", lambda e: self.process_stock("out"))
         self.entry.bind("<Shift-Return>", lambda e: self.process_stock("in"))
+        self.entry.bind("<KeyRelease>", self.filter_data)
 
         # ===== 商品表 =====
         columns = ("code", "name", "stock", "price")
 
-        self.tree = ttk.Treeview(self.root, columns=columns, show="headings")
+        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", height=15)
 
         self.tree.heading("code", text="编码")
         self.tree.heading("name", text="名称")
@@ -79,33 +86,37 @@ class MainWindow:
         for col in columns:
             self.tree.column(col, anchor=tk.CENTER, width=120)
 
-        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
         # ===== 当前商品 =====
-        info_frame = ttk.LabelFrame(self.root, text="当前商品")
-        info_frame.pack(fill=tk.X, padx=10, pady=5)
+        info_frame = ttk.LabelFrame(self.root, text="操作反馈")
+        info_frame.pack(fill=tk.X, padx=20, pady=10)
 
         self.current_label = tk.StringVar()
-        self.current_label.set("暂无")
+        self.current_label.set("就绪")
 
-        ttk.Label(info_frame, textvariable=self.current_label).pack(anchor="w", padx=5)
+        ttk.Label(info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=10)
 
         # ===== 近期记录 =====
-        record_frame = ttk.LabelFrame(self.root, text="近期记录")
-        record_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        record_frame = ttk.LabelFrame(self.root, text="最近 20 条交易记录")
+        record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
 
         columns = ("时间", "编码", "名称", "类型", "数量")
 
-        self.record_table = ttk.Treeview(record_frame, columns=columns, show="headings")
+        self.record_table = ttk.Treeview(record_frame, columns=columns, show="headings", height=10)
 
         for col in columns:
             self.record_table.heading(col, text=col)
             self.record_table.column(col, anchor=tk.CENTER, width=100)
 
-        self.record_table.pack(fill=tk.BOTH, expand=True)
+        self.record_table.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
     # ================= 商品数据 =================
     def load_data(self):
+        self.filter_data()
+
+    def filter_data(self, event=None):
+        keyword = self.entry.get().strip()
 
         for i in self.tree.get_children():
             self.tree.delete(i)
@@ -113,7 +124,11 @@ class MainWindow:
         conn = get_conn()
         c = conn.cursor()
 
-        c.execute("SELECT code, name, stock, price_out FROM goods")
+        c.execute("""
+            SELECT code, name, stock, price_out
+            FROM goods
+            WHERE code LIKE ? OR name LIKE ? OR type LIKE ?
+        """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
 
         for row in c.fetchall():
             self.tree.insert("", tk.END, values=row)

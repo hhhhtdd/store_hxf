@@ -7,8 +7,13 @@ class AdminWindow:
     def __init__(self, root, role='admin'):
         self.root = root
         self.root.title("后台库存管理")
-        self.root.geometry("1100x600")
+        self.root.geometry("1100x700")
         self.role = role
+
+        self.style = ttk.Style()
+        self.style.configure("TButton", padding=6)
+        self.style.configure("Treeview.Heading", font=('Helvetica', 10, 'bold'))
+
         self.build_ui()
         self.load_data()
 
@@ -16,25 +21,26 @@ class AdminWindow:
     def build_ui(self):
 
         # ===== 统计信息 =====
-        stat_frame = ttk.LabelFrame(self.root, text="运营数据")
-        stat_frame.pack(fill=tk.X, padx=10, pady=5)
+        stat_frame = ttk.LabelFrame(self.root, text="核心运营数据")
+        stat_frame.pack(fill=tk.X, padx=20, pady=10)
 
         self.stat_var = tk.StringVar()
         self.stat_var.set("加载中...")
 
-        ttk.Label(stat_frame, textvariable=self.stat_var).pack(anchor="w", padx=5)
+        ttk.Label(stat_frame, textvariable=self.stat_var, font=('Helvetica', 11, 'bold'), foreground="#d35400").pack(anchor="w", padx=15, pady=10)
 
         # ===== 顶部搜索 =====
         top = ttk.Frame(self.root)
-        top.pack(fill=tk.X, padx=10, pady=5)
+        top.pack(fill=tk.X, padx=20, pady=5)
 
-        ttk.Label(top, text="搜索：").pack(side=tk.LEFT)
+        ttk.Label(top, text="搜索 (编码/名称/类别)：").pack(side=tk.LEFT)
 
-        self.search_entry = ttk.Entry(top, width=30)
-        self.search_entry.pack(side=tk.LEFT, padx=5)
+        self.search_entry = ttk.Entry(top, width=40)
+        self.search_entry.pack(side=tk.LEFT, padx=10)
+        self.search_entry.bind("<KeyRelease>", self.search)
 
-        ttk.Button(top, text="查询", command=self.search).pack(side=tk.LEFT)
-        ttk.Button(top, text="显示全部", command=self.load_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top, text="查询", command=self.search).pack(side=tk.LEFT, padx=2)
+        ttk.Button(top, text="显示全部", command=self.load_data).pack(side=tk.LEFT, padx=2)
 
         # ===== 表格 =====
         columns = ("code","name","type","stock","warn","price_in","price_out")
@@ -46,20 +52,20 @@ class AdminWindow:
             self.tree.heading(col, text=text)
             self.tree.column(col, width=120, anchor=tk.CENTER)
 
-        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
         if self.role == 'admin':
             self.tree.bind("<Double-1>", self.on_double_click)
 
         # ===== 底部按钮 =====
         bottom = ttk.Frame(self.root)
-        bottom.pack(fill=tk.X, pady=10)
+        bottom.pack(fill=tk.X, padx=20, pady=15)
 
 
         if self.role == 'admin':
             ttk.Button(bottom, text="新增商品", command=self.add_goods).pack(side=tk.LEFT, padx=5)
             ttk.Button(bottom, text="删除商品", command=self.delete_goods).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom, text="刷新", command=self.load_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom, text="刷新数据", command=self.load_data).pack(side=tk.LEFT, padx=5)
 
     # ================= 数据 =================
     def load_data(self):
@@ -76,7 +82,7 @@ class AdminWindow:
 
         conn.close()
 
-    def search(self):
+    def search(self, event=None):
         keyword = self.search_entry.get().strip()
 
         conn = get_conn()
@@ -84,8 +90,8 @@ class AdminWindow:
 
         c.execute("""
         SELECT * FROM goods
-        WHERE code=? OR name LIKE ?
-        """, (keyword, f"%{keyword}%"))
+        WHERE code LIKE ? OR name LIKE ? OR type LIKE ?
+        """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
 
         rows = c.fetchall()
         conn.close()
@@ -100,14 +106,15 @@ class AdminWindow:
     def add_goods(self):
         win = tk.Toplevel(self.root)
         win.title("新增商品")
+        win.geometry("300x400")
 
         fields = ["编码","名称","类别","库存","预警","进价","售价"]
         entries = {}
 
         for i, f in enumerate(fields):
-            ttk.Label(win, text=f).grid(row=i, column=0, padx=5, pady=5)
+            ttk.Label(win, text=f).grid(row=i, column=0, padx=20, pady=10, sticky="e")
             e = ttk.Entry(win)
-            e.grid(row=i, column=1, padx=5, pady=5)
+            e.grid(row=i, column=1, padx=20, pady=10)
             entries[f] = e
 
         def save():
@@ -134,7 +141,7 @@ class AdminWindow:
             except Exception as e:
                 messagebox.showerror("错误", str(e))
 
-        ttk.Button(win, text="保存", command=save).grid(row=8, columnspan=2, pady=10)
+        ttk.Button(win, text="保存", command=save).grid(row=8, columnspan=2, pady=20)
 
     def delete_goods(self):
 
@@ -172,15 +179,16 @@ class AdminWindow:
 
         win = tk.Toplevel(self.root)
         win.title("编辑商品")
+        win.geometry("300x400")
 
         fields = ["编码","名称","类别","库存","预警","进价","售价"]
         entries = {}
 
         for i, (f, val) in enumerate(zip(fields, values)):
-            ttk.Label(win, text=f).grid(row=i, column=0)
+            ttk.Label(win, text=f).grid(row=i, column=0, padx=20, pady=10, sticky="e")
             e = ttk.Entry(win)
             e.insert(0, val)
-            e.grid(row=i, column=1)
+            e.grid(row=i, column=1, padx=20, pady=10)
             entries[f] = e
 
         def save():
@@ -207,7 +215,7 @@ class AdminWindow:
             win.destroy()
             self.load_data()
 
-        ttk.Button(win, text="保存修改", command=save).grid(row=8, columnspan=2)
+        ttk.Button(win, text="保存修改", command=save).grid(row=8, columnspan=2, pady=20)
 
 
     def load_stats(self):
