@@ -73,18 +73,18 @@ class MainWindow:
     def build_ui(self):
 
         # ===== 顶部工具栏 (薄荷绿背景/淡雅) =====
-        top_bar = tk.Frame(self.root, bg="#E8F5E9", height=80)
+        top_bar = tk.Frame(self.root, bg="#E8F5E9", height=60)
         top_bar.pack(fill=tk.X)
         top_bar.pack_propagate(False)
 
-        ttk.Button(top_bar, text="后台管理", command=self.open_admin, style="IOS.TButton").pack(side=tk.RIGHT, padx=30, pady=10)
+        ttk.Button(top_bar, text="后台管理", command=self.open_admin, style="IOS.TButton").pack(side=tk.RIGHT, padx=20, pady=5)
 
         # 系统名称居中显示
-        title_label = tk.Label(top_bar, text="理工文具店收银终端", font=('Helvetica', 22, 'bold'), bg="#E8F5E9", fg="#1D1D1F")
+        title_label = tk.Label(top_bar, text="理工文具店收银终端", font=('Helvetica', 20, 'bold'), bg="#E8F5E9", fg="#1D1D1F")
         title_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
         # ===== 居中搜索框 (纯白区域) =====
-        search_section = tk.Frame(self.root, bg="#FFFFFF", pady=60)
+        search_section = tk.Frame(self.root, bg="#FFFFFF", pady=20)
         search_section.pack(fill=tk.X)
 
         # 模拟圆角矩形搜索框 (加粗边框)
@@ -109,10 +109,13 @@ class MainWindow:
         self.entry.bind("<Shift-Return>", lambda e: self.process_stock(ask_qty=True))
         self.entry.bind("<KeyRelease>", self.filter_data)
 
-        # ===== 商品表 =====
+        # ===== 商品表 (默认隐藏，仅在搜索时显示) =====
         columns = ("code", "name", "stock", "price")
 
-        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", height=8)
+        self.tree_frame = tk.Frame(self.root, bg="#F5F5F7")
+        # self.tree_frame.pack(...) will be handled in filter_data
+
+        self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings", height=6)
 
         self.tree.heading("code", text="编码")
         self.tree.heading("name", text="名称")
@@ -122,17 +125,17 @@ class MainWindow:
         for col in columns:
             self.tree.column(col, anchor=tk.CENTER, width=120)
 
-        self.tree.pack(fill=tk.X, expand=False, padx=20, pady=10)
+        self.tree.pack(fill=tk.X, expand=False, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
         # ===== 当前商品 =====
-        info_frame = ttk.LabelFrame(self.root, text="操作反馈")
-        info_frame.pack(fill=tk.X, padx=20, pady=10)
+        self.info_frame = ttk.LabelFrame(self.root, text="操作反馈")
+        self.info_frame.pack(fill=tk.X, padx=20, pady=5)
 
         self.current_label = tk.StringVar()
         self.current_label.set("就绪")
 
-        ttk.Label(info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=10)
+        ttk.Label(self.info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=10)
 
         # ===== 近期记录 =====
         record_frame = ttk.LabelFrame(self.root, text="最近 10 条出库记录")
@@ -171,7 +174,11 @@ class MainWindow:
             self.tree.delete(i)
 
         if not keyword:
+            self.tree_frame.pack_forget()
             return
+
+        # 显示搜索结果列表 (放置在反馈栏之前)
+        self.tree_frame.pack(fill=tk.X, before=self.info_frame)
 
         conn = get_conn()
         c = conn.cursor()
