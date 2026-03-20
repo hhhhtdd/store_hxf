@@ -106,6 +106,7 @@ class AdminWindow:
                    COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
             FROM goods g
             LEFT JOIN record r ON g.code = r.code
+            WHERE g.name IS NOT NULL AND g.name != 'None' AND g.name != ''
             GROUP BY g.code
             ORDER BY total_sales DESC
         """)
@@ -128,7 +129,8 @@ class AdminWindow:
                    COALESCE(SUM(CASE WHEN r.type='out' THEN r.qty * g.price_out ELSE 0 END), 0) as total_sales
             FROM goods g
             LEFT JOIN record r ON g.code = r.code
-            WHERE g.code LIKE ? OR g.name LIKE ? OR g.type LIKE ?
+            WHERE (g.code LIKE ? OR g.name LIKE ? OR g.type LIKE ?)
+              AND (g.name IS NOT NULL AND g.name != 'None' AND g.name != '')
             GROUP BY g.code
             ORDER BY total_sales DESC
         """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))

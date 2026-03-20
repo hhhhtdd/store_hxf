@@ -222,9 +222,10 @@ class MainWindow:
 
         if not row:
             # 尝试通过模糊匹配到的第一个结果
-            c.execute("SELECT code, name, stock, price_out FROM goods WHERE code LIKE ? OR name LIKE ? OR type LIKE ? LIMIT 1", (f"%{code}%", f"%{code}%", f"%{code}%"))
+            c.execute("SELECT code, name, stock, price_out FROM goods WHERE (code LIKE ? OR name LIKE ? OR type LIKE ?) AND (name IS NOT NULL AND name != 'None' AND name != '') LIMIT 1", (f"%{code}%", f"%{code}%", f"%{code}%"))
             row = c.fetchone()
             if not row:
+                messagebox.showerror("错误", f"商品不存在: {code}")
                 self.current_label.set(f"❌ 商品不存在: {code}")
                 conn.close()
                 return
@@ -267,7 +268,7 @@ class MainWindow:
         action = "出库"
 
         self.current_label.set(
-            f"{action}成功 | {name} | 数量:{qty} | 剩余:{new_stock}"
+            f"✅ 操作成功 | {name} | 数量:{qty} | 剩余:{new_stock}"
         )
 
         self.load_data()
