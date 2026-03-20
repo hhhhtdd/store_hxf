@@ -112,7 +112,7 @@ class MainWindow:
         # ===== 商品表 =====
         columns = ("code", "name", "stock", "price")
 
-        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", height=15)
+        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", height=8)
 
         self.tree.heading("code", text="编码")
         self.tree.heading("name", text="名称")
@@ -122,7 +122,7 @@ class MainWindow:
         for col in columns:
             self.tree.column(col, anchor=tk.CENTER, width=120)
 
-        self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        self.tree.pack(fill=tk.X, expand=False, padx=20, pady=10)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
         # ===== 当前商品 =====
@@ -136,7 +136,7 @@ class MainWindow:
 
         # ===== 近期记录 =====
         record_frame = ttk.LabelFrame(self.root, text="最近 10 条出库记录")
-        record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
+        record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 30))
 
         # Use English IDs for columns internally, Chinese for headings
         record_cols = ("time", "code", "name", "type", "qty")
