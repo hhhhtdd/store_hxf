@@ -235,7 +235,7 @@ class MainWindow:
 
         conn.close()
 
-    def add_to_cart_manual(self, row):
+    def add_to_cart_manual(self, row, ask_qty=False):
         try:
             # row might be a tuple/list from DB or Treeview
             # Treeview strings might need conversion
@@ -243,7 +243,12 @@ class MainWindow:
             name = str(row[1])
             stock = int(row[2])
             price = float(row[3])
-            qty = 1
+
+            if ask_qty:
+                qty = askinteger("数量", f"[{name}] 数量", minvalue=1)
+                if not qty: return
+            else:
+                qty = 1
 
             # 添加到购物单
             found = False
