@@ -39,7 +39,6 @@ class MainWindow:
 
         self.build_ui()
         self.load_data()
-        self.load_records()
         self.update_cart_display()
 
 
@@ -68,9 +67,9 @@ class MainWindow:
 
         win = tk.Toplevel(self.root)
 
-        # ⭐ 传入权限和刷新回调，并保持引用
+        # ⭐ 传入权限，并保持引用 (不再需要刷新回调，因为主页不显示记录)
         from ui.admin_window import AdminWindow
-        self.admin_win_instance = AdminWindow(win, role, refresh_callback=self.load_records)
+        self.admin_win_instance = AdminWindow(win, role)
     # ================= UI =================
     def build_ui(self):
 
@@ -129,6 +128,7 @@ class MainWindow:
 
         self.tree.pack(fill=tk.X, expand=False, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+        self.tree.bind("<Double-1>", self.on_tree_double_click)
 
         # ===== 购物单 (核心支付区) =====
         cart_section = tk.Frame(self.root, bg="#FFFFFF", pady=10)
@@ -167,22 +167,6 @@ class MainWindow:
 
         ttk.Label(self.info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=5)
 
-        # ===== 近期记录 =====
-        record_frame = ttk.LabelFrame(self.root, text="最近 3 条出库记录")
-        record_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
-
-        # Use English IDs for columns internally, Chinese for headings
-        record_cols = ("time", "code", "name", "type", "qty")
-        record_headers = ("时间", "编码", "名称", "类型", "数量")
-
-        self.record_table = ttk.Treeview(record_frame, columns=record_cols, show="headings", height=3)
-
-        for col, head in zip(record_cols, record_headers):
-            self.record_table.heading(col, text=head)
-            self.record_table.column(col, anchor=tk.CENTER, width=100)
-
-        self.record_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
     # ================= 商品数据 =================
     def load_data(self):
         self.filter_data()
@@ -196,6 +180,17 @@ class MainWindow:
             code = values[0]
             self.entry.delete(0, tk.END)
             self.entry.insert(0, code)
+
+    def on_tree_double_click(self, event):
+        selected = self.tree.focus()
+        if not selected:
+            return
+        values = self.tree.item(selected, "values")
+        if values:
+            # values: (code, name, stock, price)
+            self.add_to_cart_manual(values)
+            self.entry.delete(0, tk.END)
+            self.tree_frame.pack_forget()
 
     def filter_data(self, event=None):
         keyword = self.entry.get().strip()
@@ -266,29 +261,6 @@ class MainWindow:
         self.current_label.set(f"🛍️ 已添加: {name} x{qty}")
         self.update_cart_display()
 
-    # ================= 记录数据 =================
-    def load_records(self):
-
-        for i in self.record_table.get_children():
-            self.record_table.delete(i)
-
-        conn = get_conn()
-        c = conn.cursor()
-
-        # Selection order must match the record_cols order: (time, code, name, type, qty)
-        c.execute("""
-        SELECT time, code, name, type, qty
-        FROM record
-        WHERE type = 'out'
-        ORDER BY id DESC
-        LIMIT 3
-        """)
-
-        rows = c.fetchall()
-        for row in rows:
-            self.record_table.insert("", tk.END, values=row)
-
-        conn.close()
 
     # ================= 核心业务 =================
     def process_stock(self, ask_qty=False):
@@ -404,7 +376,6 @@ class MainWindow:
             self.current_label.set(f"✅ 结账成功 | 实收: {total} 元")
             self.update_cart_display()
             self.load_data()
-            self.load_records()
         except Exception as e:
             conn.rollback()
             messagebox.showerror("结账失败", str(e))
