@@ -9,7 +9,8 @@ class MainWindow:
     def __init__(self, root):
         self.root = root
         self.root.title("理工文具店管理系统")
-        self.root.geometry("1400x950")
+        self.root.geometry("1500x1000")
+        self.cart = [] # 购物单
         self.root.configure(bg="#F5F5F7")  # Apple-style light gray background
 
         self.style = ttk.Style()
@@ -39,6 +40,7 @@ class MainWindow:
         self.build_ui()
         self.load_data()
         self.load_records()
+        self.update_cart_display()
 
 
     def open_admin(self):
@@ -128,14 +130,42 @@ class MainWindow:
         self.tree.pack(fill=tk.X, expand=False, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
-        # ===== 当前商品 =====
+        # ===== 购物单 (核心支付区) =====
+        cart_section = tk.Frame(self.root, bg="#FFFFFF", pady=10)
+        cart_section.pack(fill=tk.X)
+
+        cart_container = tk.Frame(cart_section, bg="#FFFFFF")
+        cart_container.pack(fill=tk.X, padx=20)
+
+        # 购物车表格
+        cart_cols = ("code", "name", "price", "qty", "subtotal")
+        cart_headers = ("编码", "名称", "单价", "数量", "小计")
+        self.cart_table = ttk.Treeview(cart_container, columns=cart_cols, show="headings", height=8)
+        for col, head in zip(cart_cols, cart_headers):
+            self.cart_table.heading(col, text=head)
+            self.cart_table.column(col, anchor=tk.CENTER, width=120)
+        self.cart_table.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # 右侧结算面板
+        checkout_panel = tk.Frame(cart_container, bg="#FFFFFF", padx=30)
+        checkout_panel.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.total_var = tk.StringVar(value="0.00")
+        tk.Label(checkout_panel, text="应付总金额", font=('Helvetica', 16), bg="#FFFFFF", fg="#86868B").pack(pady=(10, 0))
+        tk.Label(checkout_panel, textvariable=self.total_var, font=('Helvetica', 40, 'bold'), bg="#FFFFFF", fg="#1D1D1F").pack()
+        tk.Label(checkout_panel, text="元", font=('Helvetica', 16), bg="#FFFFFF", fg="#1D1D1F").pack(pady=(0, 20))
+
+        ttk.Button(checkout_panel, text="确认结账", command=self.finalize_checkout, style="IOS.TButton").pack(fill=tk.X, pady=5)
+        ttk.Button(checkout_panel, text="清空购物单", command=self.clear_cart, style="IOS.TButton").pack(fill=tk.X, pady=5)
+
+        # ===== 操作反馈 =====
         self.info_frame = ttk.LabelFrame(self.root, text="操作反馈")
         self.info_frame.pack(fill=tk.X, padx=20, pady=5)
 
         self.current_label = tk.StringVar()
         self.current_label.set("就绪")
 
-        ttk.Label(self.info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=10)
+        ttk.Label(self.info_frame, textvariable=self.current_label, font=('Helvetica', 12, 'bold'), foreground="#2c3e50").pack(anchor="w", padx=15, pady=5)
 
         # ===== 近期记录 =====
         record_frame = ttk.LabelFrame(self.root, text="最近 10 条出库记录")
@@ -230,7 +260,7 @@ class MainWindow:
         c = conn.cursor()
 
         # 查询商品
-        c.execute("SELECT name, stock, price_out FROM goods WHERE code=?", (code,))
+        c.execute("SELECT code, name, stock, price_out FROM goods WHERE code=?", (code,))
         row = c.fetchone()
 
         if not row:
@@ -242,51 +272,100 @@ class MainWindow:
                 self.current_label.set(f"❌ 商品不存在: {code}")
                 conn.close()
                 return
-            code, name, stock, price = row
-        else:
-            name, stock, price = row
+
+        code, name, stock, price = row
+        conn.close()
 
         # 确定数量
         if ask_qty:
-            qty = askinteger("数量", f"[{name}] 入库/出库 数量", minvalue=1)
+            qty = askinteger("数量", f"[{name}] 数量", minvalue=1)
             if not qty:
-                conn.close()
                 return
         else:
             qty = 1
 
-        # 默认前台只有出库 (mode = out)
-        mode = "out"
+        # 添加到购物单
+        found = False
+        for item in self.cart:
+            if item['code'] == code:
+                item['qty'] += qty
+                item['subtotal'] = item['qty'] * item['price']
+                found = True
+                break
 
-        # 库存检查
-        if stock < qty:
-            messagebox.showerror("错误", "库存不足")
-            self.current_label.set("❌ 库存不足")
-            conn.close()
-            return
+        if not found:
+            self.cart.append({
+                'code': code,
+                'name': name,
+                'price': price,
+                'qty': qty,
+                'subtotal': price * qty,
+                'stock': stock
+            })
 
-        # 更新库存
-        c.execute("UPDATE goods SET stock = stock - ? WHERE code=?", (qty, code))
-        new_stock = stock - qty
-
-        # 写入记录
-        c.execute("""
-        INSERT INTO record (code, name, type, qty)
-        VALUES (?, ?, ?, ?)
-        """, (code, name, mode, qty))
-
-        conn.commit()
-        conn.close()
-
-        # 更新UI
-        action = "出库"
-
-        success_msg = f"操作成功 | {name} | 数量:{qty} | 剩余:{new_stock}"
-        messagebox.showinfo("成功", success_msg)
-        self.current_label.set(f"✅ {success_msg}")
-
-        self.load_data()
-        self.load_records()
+        self.current_label.set(f"🛍️ 已添加: {name} x{qty}")
+        self.update_cart_display()
 
         self.entry.delete(0, tk.END)
         self.entry.focus_set()
+
+    def update_cart_display(self):
+        for i in self.cart_table.get_children():
+            self.cart_table.delete(i)
+
+        total = 0.0
+        for item in self.cart:
+            total += item['subtotal']
+            self.cart_table.insert("", tk.END, values=(item['code'], item['name'], f"{item['price']:.2f}", item['qty'], f"{item['subtotal']:.2f}"))
+
+        self.total_var.set(f"{total:.2f}")
+
+    def clear_cart(self):
+        if not self.cart: return
+        if messagebox.askyesno("确认", "确定清空当前购物单吗？"):
+            self.cart = []
+            self.update_cart_display()
+            self.current_label.set("购物车已清空")
+
+    def finalize_checkout(self):
+        if not self.cart:
+            messagebox.showwarning("提示", "购物单是空的")
+            return
+
+        total = self.total_var.get()
+        if not messagebox.askyesno("结账确认", f"总计金额：{total} 元\n是否确认结账并打印记录？"):
+            return
+
+        conn = get_conn()
+        c = conn.cursor()
+
+        try:
+            for item in self.cart:
+                # 再次检查库存 (防止在购物期间库存变动)
+                c.execute("SELECT stock FROM goods WHERE code=?", (item['code'],))
+                current_stock = c.fetchone()[0]
+
+                if current_stock < item['qty']:
+                    raise Exception(f"商品 [{item['name']}] 库存不足，当前仅剩 {current_stock}")
+
+                # 更新库存
+                c.execute("UPDATE goods SET stock = stock - ? WHERE code=?", (item['qty'], item['code']))
+
+                # 写入记录
+                c.execute("""
+                INSERT INTO record (code, name, type, qty)
+                VALUES (?, ?, ?, ?)
+                """, (item['code'], item['name'], 'out', item['qty']))
+
+            conn.commit()
+            messagebox.showinfo("成功", f"结账完成！实收 {total} 元")
+            self.cart = []
+            self.current_label.set(f"✅ 结账成功 | 实收: {total} 元")
+            self.update_cart_display()
+            self.load_data()
+            self.load_records()
+        except Exception as e:
+            conn.rollback()
+            messagebox.showerror("结账失败", str(e))
+        finally:
+            conn.close()
