@@ -188,7 +188,7 @@ class MainWindow:
         values = self.tree.item(selected, "values")
         if values:
             # values: (code, name, stock, price)
-            self.add_to_cart_manual(values)
+            self.add_to_cart_manual(values, ask_qty=False)
             self.entry.delete(0, tk.END)
             self.tree_frame.pack_forget()
 
@@ -211,7 +211,7 @@ class MainWindow:
         if exact_row:
             # 如果精确匹配，直接加入购物单并清空输入框
             conn.close()
-            self.add_to_cart_manual(exact_row)
+            self.add_to_cart_manual(exact_row, ask_qty=False)
             self.entry.delete(0, tk.END)
             self.tree_frame.pack_forget()
             return
@@ -236,35 +236,42 @@ class MainWindow:
         conn.close()
 
     def add_to_cart_manual(self, row):
-        code, name, stock, price = row
-        qty = 1
+        try:
+            # row might be a tuple/list from DB or Treeview
+            # Treeview strings might need conversion
+            code = str(row[0])
+            name = str(row[1])
+            stock = int(row[2])
+            price = float(row[3])
+            qty = 1
 
-        # 添加到购物单
-        found = False
-        for item in self.cart:
-            if item['code'] == code:
-                item['qty'] += qty
-                item['subtotal'] = item['qty'] * item['price']
-                found = True
-                break
+            # 添加到购物单
+            found = False
+            for item in self.cart:
+                if item['code'] == code:
+                    item['qty'] += qty
+                    item['subtotal'] = item['qty'] * item['price']
+                    found = True
+                    break
 
-        if not found:
-            self.cart.append({
-                'code': code,
-                'name': name,
-                'price': price,
-                'qty': qty,
-                'subtotal': price * qty,
-                'stock': stock
-            })
+            if not found:
+                self.cart.append({
+                    'code': code,
+                    'name': name,
+                    'price': price,
+                    'qty': qty,
+                    'subtotal': price * qty,
+                    'stock': stock
+                })
 
-        self.current_label.set(f"🛍️ 已添加: {name} x{qty}")
-        self.update_cart_display()
+            self.current_label.set(f"🛍️ 已添加: {name} x{qty}")
+            self.update_cart_display()
+        except Exception as e:
+            messagebox.showerror("添加失败", f"数据格式错误: {e}")
 
 
     # ================= 核心业务 =================
     def process_stock(self, ask_qty=False):
-
         code = self.entry.get().strip()
         if not code:
             return
@@ -286,39 +293,8 @@ class MainWindow:
                 conn.close()
                 return
 
-        code, name, stock, price = row
         conn.close()
-
-        # 确定数量
-        if ask_qty:
-            qty = askinteger("数量", f"[{name}] 数量", minvalue=1)
-            if not qty:
-                return
-        else:
-            qty = 1
-
-        # 添加到购物单
-        found = False
-        for item in self.cart:
-            if item['code'] == code:
-                item['qty'] += qty
-                item['subtotal'] = item['qty'] * item['price']
-                found = True
-                break
-
-        if not found:
-            self.cart.append({
-                'code': code,
-                'name': name,
-                'price': price,
-                'qty': qty,
-                'subtotal': price * qty,
-                'stock': stock
-            })
-
-        self.current_label.set(f"🛍️ 已添加: {name} x{qty}")
-        self.update_cart_display()
-
+        self.add_to_cart_manual(row, ask_qty=ask_qty)
         self.entry.delete(0, tk.END)
         self.entry.focus_set()
 
